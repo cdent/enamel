@@ -60,6 +60,7 @@ def generate_resource_data(resources):
     return data
 
 
+@version.versionator('0.1', '0.9')
 def home():
     pat = re.compile("^\/[^\/]*?$")
 
@@ -69,6 +70,11 @@ def home():
             resources.append(url)
 
     return flask.jsonify(resources=generate_resource_data(resources))
+
+
+@version.versionator('1.0')  # noqa
+def home():
+    return flask.jsonify(message='version one is a lot different')
 
 
 def server_boot():

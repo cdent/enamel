@@ -54,3 +54,25 @@ tests:
         vary: /OpenStack-enamel-API-Version/
         openstack-enamel-api-version: '0.1'
       status: 406
+
+    - name: different handler for special version
+      GET: /
+      request_headers:
+        content-type: application/json
+        openstack-enamel-api-version: '1.0'
+      response_headers:
+        vary: /OpenStack-enamel-API-Version/
+        openstack-enamel-api-version: '1.0'
+      status: 200
+      response_json_paths:
+        $.message: version one is a lot different
+
+    - name: not 404 for in version route
+      GET: /
+      request_headers:
+        content-type: application/json
+        openstack-enamel-api-version: '0.9'
+      response_headers:
+        vary: /OpenStack-enamel-API-Version/
+        openstack-enamel-api-version: '0.9'
+      status: 200

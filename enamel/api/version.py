@@ -14,6 +14,8 @@
 
 import collections
 
+import flask
+
 # TODO(cdent): Get a real one, get it from config or other source of
 # defaults.
 SERVICE_TYPE = 'enamel'
@@ -22,6 +24,10 @@ SERVICE_TYPE = 'enamel'
 VERSIONS = [
     '0.1',
 ]
+
+# A per process cache of versioned route handler methods, instantiated
+# at compile time, assuming we always use function-based route handlers.
+VERSIONED_ROUTES = collections.defaultdict(list)
 
 
 def max_version_string():
@@ -80,7 +86,48 @@ class Version(collections.namedtuple('Version', 'major minor')):
         return self.MIN_VERSION
 
     def in_window(self):
-        return self.min_version <= self <= self.max_version
+        return self.matches(self.min_version, self.max_version)
+
+    def matches(self, min, max):
+        return min <= self <= max
+
+
+class VersionedMethod(object):
+    """A method that can be chosen by version. Borrowed from Nova."""
+
+    def __init__(self, func, min_version, max_version):
+        self.func = func
+        if max_version is None:
+            max_version = max_version_string()
+        self.min_version = parse_version_string(min_version)
+        self.max_version = parse_version_string(max_version)
+
+    def __str__(self):
+        return ('VersionedMethod %s: min: %s, max: %s' %
+                self.func.__name__, self.min_version, self.max_version)
+
+
+def versionator(min_ver, max_ver=None):
+
+    def decorator(f):
+        new_func = VersionedMethod(f, min_ver, max_ver)
+        func_name = f.__name__
+        VERSIONED_ROUTES[func_name].append(new_func)
+        VERSIONED_ROUTES[func_name].sort(key=lambda f: f.min_version,
+                                         reverse=True)
+
+        def get_func():
+            for func in VERSIONED_ROUTES[func_name]:
+                if (flask.g.request_version.matches(func.min_version,
+                                                    func.max_version)):
+                    return func.func()
+            else:
+                # TODO(cdent): Replace with proper exception handling:
+                # http://flask.pocoo.org/docs/0.10/patterns/apierrors/
+                flask.abort(404)
+        return get_func
+
+    return decorator
 
 
 def extract_version(headers):
